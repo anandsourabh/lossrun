@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wf-lossrun-persistence"
+version = "1.0.0"
+description = "Persistence service for WF Property Loss Run extraction payloads"
+requires-python = ">=3.11"
+dependencies = [
+    "psycopg2-binary>=2.9",
+    "pydantic>=2.0",
+    "requests>=2.31",
+]
+
+[project.scripts]
+wf-lossrun = "wf_lossrun_persistence.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]

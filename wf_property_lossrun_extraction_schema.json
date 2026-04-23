@@ -1,0 +1,339 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WFPropertyLossRunExtraction",
+  "description": "Structured extraction schema for property loss run documents. Output is document-centric (no UUIDs). The persistence service resolves all x-db-key fields to foreign keys and upserts reference entities before inserting transactional rows.",
+  "type": "object",
+  "required": ["reportMetadata", "insured", "location", "policies"],
+
+  "properties": {
+
+    "reportMetadata": {
+      "type": "object",
+      "description": "Metadata about the source document. Maps to: wf_property_lossrun_report.",
+      "x-db-table": "wf_property_lossrun_report",
+      "required": ["source", "documentType"],
+      "properties": {
+        "source": {
+          "type": ["string", "null"],
+          "description": "Organization that issued the document (e.g., 'Marsh USA LLC', 'Lockton Companies', 'Sedgwick', 'FM Global'). Maps to: wf_property_lossrun_report.source_system AND used as natural key to resolve wf_property_lossrun_broker."
+        },
+        "documentType": {
+          "type": ["string", "null"],
+          "enum": ["Loss Run", "No Loss Letter", "Proof of Loss", "Claims History", "TPA Report", "Internal Summary", null],
+          "description": "Classification of the document format. Maps to: wf_property_lossrun_report.document_type."
+        },
+        "valuationDate": {
+          "type": ["string", "null"],
+          "format": "date",
+          "description": "Date the loss run data was valued or current as of (e.g., 'Valued as of 9/25/2024'). Maps to: wf_property_lossrun_report.valuation_date."
+        },
+        "reportDate": {
+          "type": ["string", "null"],
+          "format": "date",
+          "description": "Date the document or letter was issued. Maps to: wf_property_lossrun_report.report_date."
+        },
+        "lookbackPeriod": {
+          "type": ["object", "null"],
+          "description": "Coverage period reviewed in the report. Maps to: wf_property_lossrun_report.period_start / period_end.",
+          "properties": {
+            "startDate": { "type": ["string", "null"], "format": "date" },
+            "endDate":   { "type": ["string", "null"], "format": "date" }
+          }
+        }
+      }
+    },
+
+    "broker": {
+      "type": ["object", "null"],
+      "description": "Broker or TPA that produced this document. Maps to: wf_property_lossrun_broker (upsert on name). Natural key: name.",
+      "x-db-table": "wf_property_lossrun_broker",
+      "x-db-upsert-key": "name",
+      "properties": {
+        "name": {
+          "type": ["string", "null"],
+          "description": "Full legal name of the broker or TPA (e.g., 'Marsh USA LLC', 'Lockton Companies'). Maps to: wf_property_lossrun_broker.name."
+        },
+        "contactName": {
+          "type": ["string", "null"],
+          "description": "Name of the individual signing or issuing the document. Maps to: wf_property_lossrun_broker.contact_name."
+        },
+        "phone": {
+          "type": ["string", "null"],
+          "description": "Broker phone number. Maps to: wf_property_lossrun_broker.phone."
+        },
+        "email": {
+          "type": ["string", "null"],
+          "description": "Broker email address. Maps to: wf_property_lossrun_broker.email."
+        },
+        "licenseNumber": {
+          "type": ["string", "null"],
+          "description": "State insurance license number if present on the document (e.g., 'California Insurance License #0437153'). Maps to: wf_property_lossrun_broker.license_number."
+        },
+        "address": {
+          "type": ["string", "null"],
+          "description": "Broker office address as printed on the document. Maps to: wf_property_lossrun_broker.address."
+        }
+      }
+    },
+
+    "insured": {
+      "type": "object",
+      "description": "Named insured entity. Maps to: wf_property_lossrun_insured (upsert on name). Natural key: name.",
+      "x-db-table": "wf_property_lossrun_insured",
+      "x-db-upsert-key": "name",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Legal name of the insured as printed on the document (e.g., 'Greystar Real Estate Partners', 'Advenir, Inc.'). Maps to: wf_property_lossrun_insured.name."
+        },
+        "portfolioOwner": {
+          "type": ["string", "null"],
+          "description": "Parent investment manager or owning entity if different from named insured (e.g., 'MetLife Core Property Fund', 'Knightvest Holdings, LLC'). Maps to: wf_property_lossrun_insured.contact_name (overloaded) or future portfolio_owner column."
+        }
+      }
+    },
+
+    "location": {
+      "type": "object",
+      "description": "Physical insured location. Maps to: wf_property_lossrun_property (upsert on name + address.street). Natural key: name + address.street.",
+      "x-db-table": "wf_property_lossrun_property",
+      "x-db-upsert-key": ["name", "address.street"],
+      "required": ["address"],
+      "properties": {
+        "name": {
+          "type": ["string", "null"],
+          "description": "Property or asset name (e.g., 'Grapevine TwentyFour 99', 'Saxon Woods'). May be null on no-loss letters where the document only references the insured. Maps to: wf_property_lossrun_property.name."
+        },
+        "propertyType": {
+          "type": ["string", "null"],
+          "description": "Occupancy or property type (e.g., 'Multifamily Apartment'). Maps to: wf_property_lossrun_property.property_type."
+        },
+        "address": {
+          "type": "object",
+          "description": "Street address of the location.",
+          "properties": {
+            "street": { "type": ["string", "null"], "description": "Street address. Maps to: wf_property_lossrun_property.address." },
+            "city":   { "type": ["string", "null"], "description": "City. Maps to: wf_property_lossrun_property.city." },
+            "state":  { "type": ["string", "null"], "description": "2-letter state code. Maps to: wf_property_lossrun_property.state." },
+            "zip":    { "type": ["string", "null"], "description": "Postal code. Maps to: wf_property_lossrun_property.zip." }
+          }
+        },
+        "fmGlobal": {
+          "type": ["object", "null"],
+          "description": "FM Global-specific location identifiers. Present only on FM Global documents.",
+          "properties": {
+            "indexNumber":    { "type": ["string", "null"], "description": "FM Global Index Number (e.g., '002626.55')." },
+            "locationNumber": { "type": ["string", "null"], "description": "FM Global Location Number (e.g., 'TX20')." }
+          }
+        }
+      }
+    },
+
+    "policies": {
+      "type": "array",
+      "description": "Policies reviewed in this document. Each item maps to: wf_property_lossrun_policy (upsert on policyNumber + effectiveDate) and wf_property_lossrun_property_policy (junction).",
+      "items": {
+        "type": "object",
+        "required": ["coverageLine"],
+        "properties": {
+
+          "policyNumber": {
+            "type": ["string", "null"],
+            "description": "Carrier policy number. Maps to: wf_property_lossrun_policy.policy_number. Used as part of upsert key with effectiveDate."
+          },
+          "carrier": {
+            "type": ["object", "null"],
+            "description": "Underwriting carrier. Maps to: wf_property_lossrun_carrier (upsert on name). Natural key: name.",
+            "x-db-table": "wf_property_lossrun_carrier",
+            "x-db-upsert-key": "name",
+            "properties": {
+              "name": {
+                "type": ["string", "null"],
+                "description": "Full carrier name (e.g., 'General Star Indemnity Company', 'State Farm'). Maps to: wf_property_lossrun_carrier.name."
+              },
+              "naicCode": {
+                "type": ["string", "null"],
+                "description": "NAIC carrier code if present. Maps to: wf_property_lossrun_carrier.naic_code."
+              }
+            }
+          },
+          "coverageLine": {
+            "type": "string",
+            "enum": ["Property", "General Liability", "Commercial General Liability", "Casualty", "All Risk", "AOP", "Other"],
+            "description": "Line of business. Used as natural key to resolve wf_property_lossrun_coverage_type. Maps to: wf_property_lossrun_coverage_type.label."
+          },
+          "policyPeriod": {
+            "type": ["object", "null"],
+            "description": "Policy effective dates.",
+            "properties": {
+              "startDate": { "type": ["string", "null"], "format": "date", "description": "Maps to: wf_property_lossrun_policy.effective_date." },
+              "endDate":   { "type": ["string", "null"], "format": "date", "description": "Maps to: wf_property_lossrun_policy.expiration_date." }
+            }
+          },
+          "policyLimit": {
+            "type": ["number", "null"],
+            "description": "Total policy limit at time of the loss run. Maps to: wf_property_lossrun_policy.total_limit."
+          },
+          "deductible": {
+            "type": ["number", "null"],
+            "description": "Per-occurrence deductible. Maps to: wf_property_lossrun_policy.deductible_amount."
+          },
+          "deductibleType": {
+            "type": ["string", "null"],
+            "description": "Deductible structure (e.g., 'Per Occurrence', 'Per CAT Event'). Maps to: wf_property_lossrun_policy.deductible_type."
+          },
+
+          "claims": {
+            "type": "array",
+            "description": "Claims reported under this policy. Each item maps to: wf_property_lossrun_claim.",
+            "x-db-table": "wf_property_lossrun_claim",
+            "items": {
+              "type": "object",
+              "properties": {
+                "claimNumber": {
+                  "type": ["string", "null"],
+                  "description": "Carrier or TPA claim reference (e.g., 'NYC21808950', '040060-004473-GD-01'). Maps to: wf_property_lossrun_claim.claim_number."
+                },
+                "lossDate": {
+                  "type": ["string", "null"],
+                  "format": "date",
+                  "description": "Date of loss (DOL). Maps to: wf_property_lossrun_claim.date_of_loss."
+                },
+                "causeOfLoss": {
+                  "type": ["string", "null"],
+                  "description": "Primary peril or cause (e.g., 'Freeze', 'Fire', 'Wind', 'Hurricane/Tropical Storm'). Maps to: wf_property_lossrun_claim.cause_of_loss."
+                },
+                "catCode": {
+                  "type": ["string", "null"],
+                  "description": "Catastrophe code or event identifier if present (e.g., 'CAT 2115', 'CAT2050'). Appended to causeOfLoss or stored in wf_property_lossrun_claim.cause_of_loss."
+                },
+                "description": {
+                  "type": ["string", "null"],
+                  "description": "Narrative description of the loss event. Maps to: wf_property_lossrun_claim.loss_description."
+                },
+                "status": {
+                  "type": ["string", "null"],
+                  "enum": ["Open", "Closed", "Withdrawn", "Below Deductible", "Unknown", null],
+                  "description": "Current claim status. Maps to: wf_property_lossrun_claim.status."
+                },
+                "claimantName": {
+                  "type": ["string", "null"],
+                  "description": "Claimant name for liability claims. Maps to: wf_property_lossrun_claim.notes (prefixed 'Claimant: ...')."
+                },
+                "financials": {
+                  "type": ["object", "null"],
+                  "description": "All financial figures reported for this claim.",
+                  "properties": {
+                    "paidLoss": {
+                      "type": ["number", "null"],
+                      "description": "Indemnity paid to date. Maps to: wf_property_lossrun_claim.total_paid."
+                    },
+                    "paidLAE": {
+                      "type": ["number", "null"],
+                      "description": "Loss adjustment expenses paid to date. Maps to: wf_property_lossrun_claim.lae_paid."
+                    },
+                    "reserveLoss": {
+                      "type": ["number", "null"],
+                      "description": "Outstanding indemnity reserve. Maps to: wf_property_lossrun_claim.outstanding_reserve."
+                    },
+                    "reserveLAE": {
+                      "type": ["number", "null"],
+                      "description": "Outstanding LAE reserve. Maps to: wf_property_lossrun_claim.lae_reserve."
+                    },
+                    "totalIncurred": {
+                      "type": ["number", "null"],
+                      "description": "Total incurred (paid + reserves). Maps to: wf_property_lossrun_claim.total_incurred."
+                    },
+                    "grossAdvance": {
+                      "type": ["number", "null"],
+                      "description": "Gross advance before deductible (used in Proof of Loss documents). Maps to: wf_property_lossrun_claim.total_incurred when totalIncurred is absent."
+                    },
+                    "deductibleApplied": {
+                      "type": ["number", "null"],
+                      "description": "Deductible amount applied to this specific claim. Maps to: wf_property_lossrun_claim.deductible_applied."
+                    },
+                    "netAdvance": {
+                      "type": ["number", "null"],
+                      "description": "Net advance after deductible. Maps to: wf_property_lossrun_claim.amount_less_deductible."
+                    },
+                    "carrierShare": {
+                      "type": ["number", "null"],
+                      "description": "Carrier's proportional share (e.g., '50% General Star share = $125,000'). Maps to: wf_property_lossrun_claim.total_paid when paidLoss is absent."
+                    }
+                  }
+                },
+                "tpaNotes": {
+                  "type": ["string", "null"],
+                  "description": "Adjuster or TPA commentary and investigation notes. Maps to: wf_property_lossrun_claim.notes."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "noLossAttestation": {
+      "type": ["object", "null"],
+      "description": "Populated when the document confirms no losses occurred. Absence of claims in policies[] is not sufficient — this section captures an explicit written attestation. Signals to the persistence service to insert a wf_property_lossrun_report row with no child claim rows.",
+      "properties": {
+        "confirmedNoLosses": {
+          "type": ["boolean", "null"],
+          "description": "True if the document explicitly attests no losses. Maps to: wf_property_lossrun_report (presence of this section, no claims inserted)."
+        },
+        "asOfDate": {
+          "type": ["string", "null"],
+          "format": "date",
+          "description": "Date the confirmation was issued. Maps to: wf_property_lossrun_report.valuation_date if not already set."
+        },
+        "lookbackPeriod": {
+          "type": ["object", "null"],
+          "description": "Period confirmed as loss-free.",
+          "properties": {
+            "startDate": { "type": ["string", "null"], "format": "date" },
+            "endDate":   { "type": ["string", "null"], "format": "date" }
+          }
+        },
+        "statementSource": {
+          "type": ["string", "null"],
+          "description": "Who issued the no-loss confirmation (person name, org). Maps to: wf_property_lossrun_broker.contact_name if more specific than broker.contactName."
+        }
+      }
+    },
+
+    "_metadata": {
+      "type": "object",
+      "description": "Extraction pipeline metadata. Not persisted to domain tables — used for audit, re-processing, and confidence tracking.",
+      "properties": {
+        "sourceFile": {
+          "type": ["string", "null"],
+          "description": "Original filename of the source document (e.g., 'Grapevine_TwentyFour_99_-_Marsh_2023_2024.pdf'). Maps to: wf_property_lossrun_report.source_file."
+        },
+        "fileId": {
+          "type": ["string", "null"],
+          "description": "Internal file identifier from the document management system."
+        },
+        "extractionDate": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when the LLM extraction was performed."
+        },
+        "extractionVersion": {
+          "type": ["string", "null"],
+          "description": "Version of the extraction prompt or pipeline used."
+        },
+        "confidence": {
+          "type": ["string", "null"],
+          "enum": ["high", "medium", "low", null],
+          "description": "LLM self-assessed confidence in the extraction quality overall."
+        },
+        "parsingNotes": {
+          "type": ["string", "null"],
+          "description": "Any ambiguities, assumptions, or data quality issues the LLM encountered while parsing the document."
+        }
+      }
+    }
+
+  }
+}
