@@ -40,6 +40,19 @@ DEFAULT_BASE_URL = "https://api.runpulse.com"
 DEFAULT_SCHEMA_FILENAME = "wf_property_lossrun_extraction_schema.json"
 API_KEY_ENV_VAR = "PULSE_API_KEY"
 
+_CONTENT_TYPE_BY_EXT = {
+    ".pdf":  "application/pdf",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".xls":  "application/vnd.ms-excel",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".doc":  "application/msword",
+    ".csv":  "text/csv",
+    ".txt":  "text/plain",
+    ".png":  "image/png",
+    ".jpg":  "image/jpeg",
+    ".jpeg": "image/jpeg",
+}
+
 
 @dataclass
 class PulseExtractionResult:
@@ -165,8 +178,11 @@ class PulseExtractionService:
         if self.use_async:
             form_fields["async"] = "true"
 
+        content_type = _CONTENT_TYPE_BY_EXT.get(
+            pdf_path.suffix.lower(), "application/octet-stream"
+        )
         with pdf_path.open("rb") as fh:
-            files = {"file": (pdf_path.name, fh, "application/pdf")}
+            files = {"file": (pdf_path.name, fh, content_type)}
             try:
                 resp = self._session.post(
                     url, files=files, data=form_fields, timeout=self.request_timeout

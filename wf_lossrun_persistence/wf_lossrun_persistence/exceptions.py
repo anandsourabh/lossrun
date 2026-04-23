@@ -23,9 +23,19 @@ class ValidationError(PersistenceError):
 
 
 class PulseExtractionError(Exception):
-    """Raised when the Pulse API fails to extract or apply a schema to a PDF."""
+    """Raised when the Pulse API fails to extract or apply a schema to a document."""
 
     def __init__(self, message: str, *, status_code: int | None = None, body: str | None = None):
         self.status_code = status_code
         self.body = body
         super().__init__(message)
+
+    def __str__(self) -> str:
+        base = super().__str__()
+        extras = []
+        if self.status_code is not None:
+            extras.append(f"status={self.status_code}")
+        if self.body:
+            snippet = self.body if len(self.body) <= 500 else self.body[:500] + "..."
+            extras.append(f"body={snippet}")
+        return f"{base} [{'; '.join(extras)}]" if extras else base
